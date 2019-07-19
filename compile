@@ -1,0 +1,5 @@
+#! /bin/bash -
+
+rm bin/recognizer/*.class;
+
+javac -cp "./lib/*" src/recognizer/PersonalityRecognizer.java src/recognizer/Utils.java src/recognizer/LIWCDictionary.java -d bin/
