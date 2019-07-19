@@ -1,4 +1,4 @@
-package recognizer;
+package nl.rsm.scidev;
 
 import java.io.*;
 import java.util.Arrays;

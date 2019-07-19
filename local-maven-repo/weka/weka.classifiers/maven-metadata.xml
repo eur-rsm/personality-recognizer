@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>weka</groupId>
+  <artifactId>weka.classifiers</artifactId>
+  <versioning>
+    <release>1.0</release>
+    <versions>
+      <version>1.0</version>
+    </versions>
+    <lastUpdated>20190719121356</lastUpdated>
+  </versioning>
+</metadata>

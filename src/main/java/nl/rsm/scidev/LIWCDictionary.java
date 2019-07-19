@@ -1,4 +1,4 @@
-package recognizer;
+package nl.rsm.scidev;
 
 import java.io.BufferedReader;
 import java.io.File;
