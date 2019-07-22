@@ -607,34 +607,12 @@ public class PersonalityRecognizer
         ex.printStackTrace();
         System.exit(1);
       }
-
-      appDir = new File(".");
-      liwcCatFile = new File("./lib/LIWC.CAT");
-      mrcPath = new File("./lib/mrc2.dct");
-      attributeFile = new File("./lib/attributes-info.arff");
-      return;
     }
 
-    // load properties
-    Properties properties = new Properties();
-    try {
-      properties.load(new FileInputStream(propFile));
-      appDir = new File(properties.getProperty("appDir"));
-      liwcCatFile = new File(properties.getProperty("liwcCatFile"));
-      mrcPath = new File(properties.getProperty("mrcPath"));
-
-      // set other global variables
-      attributeFile = new File(appDir + FS + "lib" + FS + "attributes-info.arff");
-    }
-    catch (Exception e) {
-      System.err
-          .println("Error: file not found, please edit the file "
-              + propFile.getName() + " and make sure that the directory " +
-              "structure of the application is correct.");
-      System.err.println("Exception message:");
-      System.err.println(e.getMessage());
-      System.exit(1);
-    }
+    appDir = new File(".");
+    liwcCatFile = new File("./lib/LIWC.CAT");
+    mrcPath = new File("./lib/mrc2.dct");
+    attributeFile = new File("./lib/attributes-info.arff");
   }
 
   /**
