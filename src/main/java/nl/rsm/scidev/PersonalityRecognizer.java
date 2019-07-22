@@ -1054,25 +1054,18 @@ public class PersonalityRecognizer
     userInst.setDataset(dataset);
     dataset.setClassIndex(dataset.numAttributes() - 1);
 
-    for (Attribute attr : Collections.list((Enumeration<Attribute>) dataset.enumerateAttributes())) {
+    Enumeration<Attribute> enums = dataset.enumerateAttributes();
+    while (enums.hasMoreElements()) {
+      Attribute attr = enums.nextElement();
+      Double attrValue = userData.get(attr.name().toUpperCase().replace("-", "_"));
 
-      if (userData.containsKey(attr.name().toUpperCase())) {
-        if (userData.get(attr.name().toUpperCase()).toString().equals(
-            "?")) {
-          userInst.setMissing(attr);
-          System.err.println("Warning: attribute " + attr.name()
-              + " missing");
-        }
-        else {
-          double attrValue = userData.get(attr.name()
-              .toUpperCase());
-          userInst.setValue(attr, attrValue);
-        }
-      }
-      else {
+      if (attrValue == null) {
         System.err.println("No value for feature " + attr.name()
             + ", setting as missing value...");
         userInst.setMissing(attr);
+      }
+      else {
+        userInst.setValue(attr, attrValue);
       }
     }
 
