@@ -1,16 +1,5 @@
 package nl.rsm.scidev;
 
-import java.io.*;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.regex.*;
-
 import jmrc.EntryNotFoundException;
 import jmrc.Field;
 import jmrc.MRCDatabase;
@@ -18,24 +7,40 @@ import jmrc.MRCPoS;
 import jmrc.PoS;
 import jmrc.QueryException;
 import jmrc.UndefinedValueException;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
-
+import org.json.JSONObject;
 import weka.classifiers.Classifier;
-import weka.classifiers.functions.LinearRegression;
-import weka.classifiers.functions.SMOreg;
-import weka.classifiers.trees.M5P;
 import weka.core.Attribute;
+import weka.core.FastVector;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.experiment.Compute;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.Standardize;
-import weka.core.*;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.PrintStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 
 /**
@@ -76,6 +81,12 @@ import weka.core.*;
  * 				New models can be trained by adding features and replacing the scores
  * 				with human estimates. Each line corresponds to a text in the corpus
  * 				indicated by the <code>filename</code> feature.
+ *
+ *    # Added by GB
+ *    -s This option allows a directory input with 1 subject per file,
+ *       without standardizing the features: i.e. each subject is an analysis
+ *    -r Only used when the '-s' option is provided : output to JSON filed in
+ *       the specified directory. Output file name is input filename + '.json'
  *
  *
  *  See the included readme file and the website
@@ -257,60 +268,7 @@ public class PersonalityRecognizer
   public static void main (String[] args)
   {
     try {
-
-      // get options
-      Options options = new Options();
-      options.addOption("i", "input", true,
-          "Input file or directory (required)");
-      options
-          .addOption("d", "directory", false,
-              "Corpus analysis mode. Input must be a directory with " + LS +
-                  "multiple text files, features are standardized over " + LS +
-                  "the corpus and the recognizer outputs a personality " + LS +
-                  "estimate for each text file.");
-      options.addOption("m", "model", true,
-          "Model to use for computing scores (default 4). Options: "
-              + LS + "    1 = Linear Regression" + LS
-              + "    2 = M5' Model Tree" + LS
-              + "    3 = M5' Regression Tree" + LS
-              + "    4 = Support Vector Machine with Linear Kernel (SMOreg)");
-      options.addOption("c", "counts", false,
-          "Also outputs feature counts, -d must be disabled");
-      options.addOption("o", "outputmod", false, "Also outputs models");
-      options
-          .addOption("t", "type", true,
-              "Selects the type of model to use (default 1). " + LS
-                  + "The appropriate model depends on the language sample" + LS +
-                  "(written or spoken), and whether observed personality " + LS +
-                  "(as perceived by external judges) or self-assessed " + LS +
-                  "personality (the writer/speaker's perception) needs to " + LS +
-                  "be estimated from the text. Options: "
-                  + LS
-                  + "    1 = Observed personality from spoken language"
-                  + LS
-                  + "    2 = Self-assessed personality from written language");
-
-      options.addOption("a", "arff", true, "In corpus analysis mode, outputs the features of each" + LS +
-          "text into a Weka .arff dataset file," + LS +
-          "together with the predicted scores. New models can be" + LS +
-          "trained by adding features and replacing the scores" + LS +
-          "with human estimates. Each line corresponds to a text" + LS + "" +
-          "in the corpus indicated by the filename" + LS + "feature.");
-      CommandLine cmd = null;
-      CommandLineParser parser = new PosixParser();
-      HelpFormatter help = new HelpFormatter();
-      try {
-        cmd = parser.parse(options, args);
-      }
-      catch (org.apache.commons.cli.ParseException e) {
-        e.printStackTrace();
-        help.printHelp("PersonalityRecognizer", options, true);
-        System.exit(1);
-      }
-      if (!cmd.hasOption("i")) {
-        help.printHelp("PersonalityRecognizer", options, true);
-        System.exit(1);
-      }
+      CommandLine cmd = getCommandLine(args);
 
       // create and initialize recognizer using configuration file
       PersonalityRecognizer recognizer =
@@ -337,75 +295,239 @@ public class PersonalityRecognizer
         System.exit(1);
       }
 
-      if (cmd.hasOption("d")) {
-
-        // corpus analysis mode
-
-        if (!inputFile.isDirectory()) {
-          System.err.println("Error: -d switch is enabled but input file " + inputFile.getAbsolutePath() + " isn't a directory.");
-          System.exit(1);
-        }
-
-        File outputArffFile = null;
-
-        if (cmd.hasOption("a")) {
-
-          outputArffFile = new File((cmd.getOptionValue("a")));
-          if (!outputArffFile.getAbsoluteFile().getParentFile().exists()) {
-            System.err.println("Error: can't write to arff file " + outputArffFile.getAbsolutePath());
-            System.exit(1);
-          }
-        }
-        // read directory to string
-        System.err.println("Reading directory "
-            + inputFile.getAbsolutePath() + "...");
-
-        // need to build dataset
-        Map<File, Double[]> scores = recognizer.computeScoresOverCorpus(inputFile, models, outputArffFile);
-
-        recognizer.printOutput(models, scores, recognizer
-            .getModelIndex(), cmd.hasOption("o"), selfModel, System.out);
+      if (cmd.hasOption("s")) {
+        singleInstanceDirectory (recognizer, models, cmd, inputFile);
+      }
+      else if (cmd.hasOption("d")) {
+        corpusAnalysis (recognizer, models, cmd, inputFile, selfModel);
       }
       else {
-
-        // single instance mode
-        // requires non standardized models
-
-        if (cmd.hasOption("a")) {
-          System.err.println("Error: -d switch must be enabled for writing output arff file.");
-          System.exit(1);
-        }
-
-        if (inputFile.isDirectory()) {
-          System.err.println("Error: -d switch is not enabled but input file " + inputFile.getAbsolutePath() + " is a directory.");
-          System.exit(1);
-        }
-
-        // read single file to string
-        String text = Utils.readFile(inputFile);
-
-        // get feature counts from the input text
-        Map<String, Double> counts = recognizer.getFeatureCounts(text, true);
-        System.err.println("Total features computed: " + counts.size());
-
-        // print feature counts
-        if (cmd.hasOption("c")) {
-          System.out.println("Feature counts:");
-          Utils.printMap(counts, System.out);
-        }
-
-        // compute the personality scores of the new instance for each trait
-        System.err.println("Running models...");
-        double[] scores = recognizer.runWekaModels(models, counts);
-
-        // print resulting scores
-        recognizer.printOutput(models, scores, recognizer
-            .getModelIndex(), cmd.hasOption("o"), selfModel, System.out);
+        singleInstance (recognizer, models, cmd, inputFile, selfModel);
       }
     }
     catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+  private static CommandLine getCommandLine (String[] args)
+  {
+    Options options = new Options();
+    options.addOption("i", "input", true,
+        "Input file or directory (required)");
+    options.addOption("s", "directory-single", false,
+        "Analyze multiple files in a directory without Corpus analysis mode");
+    options.addOption("r", "directory-result", true,
+        "Output the features to JSON files instead of stdout");
+    options
+        .addOption("d", "directory", false,
+            "Corpus analysis mode. Input must be a directory with " + LS +
+                "multiple text files, features are standardized over " + LS +
+                "the corpus and the recognizer outputs a personality " + LS +
+                "estimate for each text file.");
+    options.addOption("m", "model", true,
+        "Model to use for computing scores (default 4). Options: "
+            + LS + "    1 = Linear Regression" + LS
+            + "    2 = M5' Model Tree" + LS
+            + "    3 = M5' Regression Tree" + LS
+            + "    4 = Support Vector Machine with Linear Kernel (SMOreg)");
+    options.addOption("c", "counts", false,
+        "Also outputs feature counts, -d must be disabled");
+    options.addOption("o", "outputmod", false, "Also outputs models");
+    options
+        .addOption("t", "type", true,
+            "Selects the type of model to use (default 1). " + LS
+                + "The appropriate model depends on the language sample" + LS
+                + "(written or spoken), and whether observed personality " + LS
+                + "(as perceived by external judges) or self-assessed " + LS
+                + "personality (the writer/speaker's perception) needs to " + LS
+                + "be estimated from the text. Options: " + LS
+                + "    1 = Observed personality from spoken language" + LS
+                + "    2 = Self-assessed personality from written language");
+
+    options.addOption("a", "arff", true, "In corpus analysis mode, outputs "
+        + "the features of each" + LS + "text into a Weka .arff dataset file,"
+        + LS + "together with the predicted scores. New models can be" + LS
+        + "trained by adding features and replacing the scores" + LS
+        + "with human estimates. Each line corresponds to a text" + LS + ""
+        + "in the corpus indicated by the filename" + LS + "feature.");
+    CommandLine cmd = null;
+    CommandLineParser parser = new PosixParser();
+    HelpFormatter help = new HelpFormatter();
+    try {
+      cmd = parser.parse(options, args);
+    }
+    catch (org.apache.commons.cli.ParseException e) {
+      e.printStackTrace();
+      help.printHelp("PersonalityRecognizer", options, true);
+      System.exit(1);
+    }
+    if (!cmd.hasOption("i")) {
+      help.printHelp("PersonalityRecognizer", options, true);
+      System.exit(1);
+    }
+    return cmd;
+  }
+
+  private static void singleInstance (PersonalityRecognizer recognizer,
+                                      Classifier[] models, CommandLine cmd,
+                                      File inputFile, boolean selfModel)
+      throws Exception
+  {
+    // single instance mode
+    // requires non standardized models
+
+    if (cmd.hasOption("a")) {
+      System.err.println("Error: -d switch must be enabled for writing "
+          + "output arff file.");
+      System.exit(1);
+    }
+
+    if (inputFile.isDirectory()) {
+      System.err.println("Error: -d switch is not enabled but input file "
+          + inputFile.getAbsolutePath() + " is a directory.");
+      System.exit(1);
+    }
+
+    // read single file to string
+    String text = Utils.readFile(inputFile);
+
+    // get feature counts from the input text
+    Map<String, Double> counts = recognizer.getFeatureCounts(text, true);
+    System.err.println("Total features computed: " + counts.size());
+
+    // print feature counts
+    if (cmd.hasOption("c")) {
+      System.out.println("Feature counts:");
+      Utils.printMap(counts, System.out);
+    }
+
+    // compute the personality scores of the new instance for each trait
+    System.err.println("Running models...");
+    double[] scores = recognizer.runWekaModels(models, counts);
+
+    // print resulting scores
+    recognizer.printOutput(models, scores, recognizer
+        .getModelIndex(), cmd.hasOption("o"), selfModel, System.out);
+  }
+
+  private static void singleInstanceDirectory (PersonalityRecognizer recognizer,
+                                               Classifier[] models,
+                                               CommandLine cmd, File inputFile)
+      throws Exception
+  {
+    // single instance mode
+    // requires non standardized models
+
+    if (cmd.hasOption("a")) {
+      System.err.println("Error: -d switch must be enabled for writing " +
+          "output arff file.");
+      System.exit(1);
+    }
+
+    if (!inputFile.isDirectory()) {
+      System.err.println("Error: -ds switch is enabled but input file "
+          + inputFile.getAbsolutePath() + " isn't a directory.");
+      System.exit(1);
+    }
+
+    int count = 0;
+    String[] children = inputFile.list();
+    for (String filename : children) {
+      File file = new File(inputFile + "/" + filename);
+      String text = Utils.readFile(file);
+
+      // get feature counts from the input text
+      Map<String, Double> counts = recognizer.getFeatureCounts(text, false);
+
+      int wc = counts.remove("WC").intValue();
+
+      System.err.println("Total features computed: " + counts.size());
+
+      // print feature counts
+      if (cmd.hasOption("c")) {
+        System.out.println("Feature counts:");
+        Utils.printMap(counts, System.out);
+      }
+
+      double[] scores = recognizer.runWekaModels(models, counts);
+
+      count += 1;
+      System.err.println("Done : " + count + " of " + children.length + "\n");
+
+      if (!cmd.hasOption("r")) {
+        System.out.println(filename + "#" + text.length() + "#" + wc
+            + "#" + Arrays.toString(scores) + "#" + printCounts(counts));
+      }
+      else {
+        JSONObject obj = new JSONObject();
+        obj.put("character_count", text.length());
+        obj.put("word_count", wc);
+        obj.put("scores", scores);
+        for (String key : counts.keySet()) {
+          obj.put(key, counts.get(key).toString());
+        }
+
+        String outputDir = cmd.getOptionValue("r");
+        File outputFile = new File(outputDir, filename + ".json");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile));
+        writer.write(obj.toString());
+        writer.close();
+      }
+    }
+
+    System.out.println("\n\n");
+  }
+
+  private static void corpusAnalysis (PersonalityRecognizer recognizer,
+                                      Classifier[] models, CommandLine cmd,
+                                      File inputFile, boolean selfModel)
+      throws Exception
+  {
+    // corpus analysis mode
+
+    if (!inputFile.isDirectory()) {
+      System.err.println("Error: -d switch is enabled but input file "
+          + inputFile.getAbsolutePath() + " isn't a directory.");
+      System.exit(1);
+    }
+
+    File outputArffFile = null;
+
+    if (cmd.hasOption("a")) {
+
+      outputArffFile = new File((cmd.getOptionValue("a")));
+      if (!outputArffFile.getAbsoluteFile().getParentFile().exists()) {
+        System.err.println("Error: can't write to arff file "
+            + outputArffFile.getAbsolutePath());
+        System.exit(1);
+      }
+    }
+    // read directory to string
+    System.err.println("Reading directory "
+        + inputFile.getAbsolutePath() + "...");
+
+    // need to build dataset
+    Map<File, Double[]> scores =
+        recognizer.computeScoresOverCorpus(inputFile, models, outputArffFile);
+
+    recognizer.printOutput(models, scores, recognizer
+        .getModelIndex(), cmd.hasOption("o"), selfModel, System.out);
+  }
+
+  private static String printCounts (Map<String, Double> counts)
+  {
+    StringBuilder result = new StringBuilder("{");
+    for (String key : counts.keySet()) {
+      result.append("'").append(key).append("': ");
+      Double value = counts.get(key);
+      if (Double.isNaN(value) || Double.isInfinite(value)) {
+        value = -1.0;
+      }
+      result.append("'").append(value).append("', ");
+    }
+    result.append("}");
+    return result.toString();
   }
 
   /**
