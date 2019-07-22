@@ -583,6 +583,38 @@ public class PersonalityRecognizer
    */
   private void loadProperties (File propFile)
   {
+    // If packaged as a JAR, the paths are fixed
+    URL resourceLoader =
+        PersonalityRecognizer.class.getResource("PersonalityRecognizer.class");
+
+    // Copy resources to working dir
+    if (resourceLoader.toString().startsWith("jar")) {
+      try {
+        String[] types = new String[]{"obs", "self"};
+        for (String type : types) {
+          for (String dir : MODEL_DIRS) {
+            for (String model : DIM_MODEL_FILES) {
+              exportResource(
+                  String.format("models/%s/%s/%s%s", type, dir, "", model));
+            }
+          }
+        }
+        exportResource("LIWC.CAT");
+        exportResource("mrc2.dct");
+        exportResource("attributes-info.arff");
+      }
+      catch (Exception ex) {
+        ex.printStackTrace();
+        System.exit(1);
+      }
+
+      appDir = new File(".");
+      liwcCatFile = new File("./lib/LIWC.CAT");
+      mrcPath = new File("./lib/mrc2.dct");
+      attributeFile = new File("./lib/attributes-info.arff");
+      return;
+    }
+
     // load properties
     Properties properties = new Properties();
     try {
@@ -1328,5 +1360,28 @@ public class PersonalityRecognizer
     shortcuts.put("FILLERS", "FILLERS");
 
     return shortcuts;
+  }
+
+  /**
+   * Copies a resource from the JAR to the working directory
+   *
+   * @param filePath Name of the resource
+   */
+  private void exportResource (String filePath) throws IOException
+  {
+    filePath = "lib/" + filePath;
+
+    // Make sure directories exist
+    String[] parts = filePath.split("/");
+    for (int i = 1; i < parts.length; i++) {
+      new File(String.join("/", Arrays.asList(parts).subList(0, i))).mkdir();
+    }
+
+    // Copy resource if needed
+    ClassLoader classLoader = getClass().getClassLoader();
+    InputStream is = classLoader.getResourceAsStream(filePath);
+    if (!Files.exists(Paths.get(filePath))) {
+      Files.copy(is, Paths.get(filePath));
+    }
   }
 }
