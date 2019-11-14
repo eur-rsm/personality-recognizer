@@ -9,7 +9,7 @@ A few modifications has been made to the original code:
 - Add an extra command line argument : -s
   This option allows a directory input with 1 subject per file,
   without standardizing the features over the whole corpus.
-- Add an extra command line argument : -e 
+- Add an extra command line argument : -r 
   This option writes the output to JSON files instead of stdout.
 - Fix a bug where not all models where used due to naming differences.
 
